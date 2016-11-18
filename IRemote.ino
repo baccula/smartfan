@@ -1,7 +1,5 @@
 /*
- * IRremoteESP8266: IRServer - demonstrates sending IR codes controlled from a webserver
- * An IR LED must be connected to ESP8266 pin 0.
- * Version 0.1 June, 2015
+ * Version 0.2 20161118
  */
 
 #include <ESP8266WiFi.h>
@@ -17,8 +15,8 @@
 #define led_pin LED_BUILTIN
 
 //WiFi Params
-const char* ssid = "Toid Industries";
-const char* password = "maggie08";
+const char* ssid = "YOUR_SSID";
+const char* password = "YOUR_WIFI_PW";
 
 
 
