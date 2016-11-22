@@ -16,13 +16,7 @@
  
 metadata {
 	definition (name: "Z-Wave & ESP 8266 Combo Fan Switch", namespace: "baccula", author: "baccula") {
-		capability "Actuator"
-		capability "Indicator"
  		capability "Switch"
-		capability "Polling"
-		capability "Refresh"
-		capability "Sensor"
-		capability "Health Check"
         
         attribute "triggerswitch", "string"
 		attribute "hispeed", "string"
@@ -45,7 +39,6 @@ metadata {
 	}
 
 	preferences {
-		input "ledIndicator", "enum", title: "LED Indicator", description: "Turn LED indicator... ", required: false, options:["on": "When On", "off": "When Off", "never": "Never"], defaultValue: "off"
         input("DeviceIP", "string", title:"Device IP Address", description: "Please enter your device's IP Address", required: true, displayDuringSetup: true)
 		input("DevicePort", "string", title:"Device Port", description: "Please enter port 80 or your device's Port", required: true, displayDuringSetup: true)
 		input("DevicePath", "string", title:"URL Path", description: "Rest of the URL, include forward slash.", displayDuringSetup: true)
@@ -56,21 +49,12 @@ metadata {
 
 	// tile definitions
 	tiles(scale: 2) {
-		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
-			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821"
-				attributeState "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
-			}
+		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
+			state "off", label:'OFF' , action: "on", icon: "st.Appliances.appliances11", backgroundColor:"#ffffff", nextState: "trying"
+			state "on", label: 'ON', action: "off", icon: "st.Appliances.appliances11", backgroundColor: "#79b821", nextState: "trying"
+			state "trying", label: 'TRYING', action: "", icon: "st.Appliances.appliances11", backgroundColor: "#FFAA33"
 		}
-
-		standardTile("indicator", "device.indicatorStatus", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
-			state "when off", action:"indicator.indicatorWhenOn", icon:"st.indicators.lit-when-off"
-			state "when on", action:"indicator.indicatorNever", icon:"st.indicators.lit-when-on"
-			state "never", action:"indicator.indicatorWhenOff", icon:"st.indicators.never-lit"
-		}
-		standardTile("refresh", "device.switch", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
-			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
-		}
+		
         standardTile("DeviceTrigger", "device.triggerswitch", width: 2, height: 2, canChangeIcon: true, canChangeBackground: true, decoration: "flat") {
 			state "default", label:'LIGHT' , action: "lightTrigger", icon: "st.Appliances.appliances11", backgroundColor:"#ffffff"
         }
@@ -85,30 +69,16 @@ metadata {
 		}
             
 		main "switch"
-		details(["switch","DeviceTrigger","speedLoTrigger","speedMedTrigger","speedHiTrigger","refresh"])
+		details(["switch","DeviceTrigger","speedLoTrigger","speedMedTrigger","speedHiTrigger"])
 	}
 }
 
 def updated(){
 		// Device-Watch simply pings if no device events received for 32min(checkInterval)
 		sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
-  switch (ledIndicator) {
-        case "on":
-            indicatorWhenOn()
-            break
-        case "off":
-            indicatorWhenOff()
-            break
-        case "never":
-            indicatorNever()
-            break
-        default:
-            indicatorWhenOn()
-            break
-    }
 }
 
-def parse(String description) {
+/*def parse(String description) {
 	def result = null
 	def cmd = zwave.parse(description, [0x20: 1, 0x70: 1])
 	if (cmd) {
@@ -121,6 +91,36 @@ def parse(String description) {
 		log.debug "Parse returned ${result?.descriptionText}"
 	}
 	return result
+}*/
+
+def parse(String description) {
+	//log.debug "Parsing '${description}'"
+	def whichTile = ''	
+	log.debug "state.fan " + state.fan
+	
+    if (state.fan == "on") {
+    	//sendEvent(name: "triggerswitch", value: "triggergon", isStateChange: true)
+        whichTile = 'mainon'
+    }
+    if (state.fan == "off") {
+    	//sendEvent(name: "triggerswitch", value: "triggergoff", isStateChange: true)
+        whichTile = 'mainoff'
+    }
+	
+    //RETURN BUTTONS TO CORRECT STATE
+	log.debug 'whichTile: ' + whichTile
+    switch (whichTile) {
+        case 'mainon':
+			def result = createEvent(name: "switch", value: "on", isStateChange: true)
+			return result
+        case 'mainoff':
+			def result = createEvent(name: "switch", value: "off", isStateChange: true)
+			return result
+        default:
+			def result = createEvent(name: "testswitch", value: "default", isStateChange: true)
+			//log.debug "testswitch returned ${result?.descriptionText}"
+			return result
+    }
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd) {
@@ -164,6 +164,7 @@ def zwaveEvent(physicalgraph.zwave.Command cmd) {
 }
 
 def on() {
+	log.debug "Switch on"
 	delayBetween([
 		zwave.basicV1.basicSet(value: 0xFF).format(),
 		zwave.switchBinaryV1.switchBinaryGet().format()
@@ -171,6 +172,7 @@ def on() {
 }
 
 def off() {
+	log.debug "Switch off"
 	delayBetween([
 		zwave.basicV1.basicSet(value: 0x00).format(),
 		zwave.switchBinaryV1.switchBinaryGet().format()
@@ -273,29 +275,6 @@ def runCmd(String varCommand) {
 	}
 }
 
-void indicatorWhenOn() {
-	sendEvent(name: "indicatorStatus", value: "when on", display: false)
-	sendHubCommand(new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(configurationValue: [1], parameterNumber: 3, size: 1).format()))
-}
-
-void indicatorWhenOff() {
-	sendEvent(name: "indicatorStatus", value: "when off", display: false)
-	sendHubCommand(new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(configurationValue: [0], parameterNumber: 3, size: 1).format()))
-}
-
-void indicatorNever() {
-	sendEvent(name: "indicatorStatus", value: "never", display: false)
-	sendHubCommand(new physicalgraph.device.HubAction(zwave.configurationV1.configurationSet(configurationValue: [2], parameterNumber: 3, size: 1).format()))
-}
-
-def invertSwitch(invert=true) {
-	if (invert) {
-		zwave.configurationV1.configurationSet(configurationValue: [1], parameterNumber: 4, size: 1).format()
-	}
-	else {
-		zwave.configurationV1.configurationSet(configurationValue: [0], parameterNumber: 4, size: 1).format()
-	}
-}
 private String convertIPtoHex(ipAddress) {
 	String hex = ipAddress.tokenize( '.' ).collect {  String.format( '%02x', it.toInteger() ) }.join()
 	//log.debug "IP address entered is $ipAddress and the converted hex code is $hex"
