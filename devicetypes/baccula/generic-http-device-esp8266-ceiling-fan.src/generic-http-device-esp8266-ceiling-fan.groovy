@@ -27,9 +27,8 @@ metadata {
 
 		command "fanOff"
         command "lowSpeed"
-        command "medSpeed"
         command "highSpeed"
-        command "push"
+        command "lighttoggle"
         
         attribute "currentSpeed", "string"
 	}
@@ -40,7 +39,6 @@ metadata {
 		input("DevicePort", "string", title:"Device Port", description: "Please enter port 80 or your device's Port", required: true, displayDuringSetup: true)
 		input("DevicePath", "string", title:"URL Path", description: "Rest of the URL, include forward slash.", displayDuringSetup: true)
 		input(name: "DevicePostGet", type: "enum", title: "POST or GET", options: ["POST","GET"], required: true, displayDuringSetup: true)
-		//input("DeviceBodyText", "string", title:'Body Content', description: 'Type in "GateTrigger=" or "CustomTrigger="', required: true, displayDuringSetup: true)
 	}
 
 	simulator {
@@ -63,140 +61,68 @@ metadata {
         }
 
 		//Speed control row
-        standardTile("fanOff", "device.level", inactiveLabel: false, decoration: "flat") {
+        standardTile("fanOff", "device.switch", inactiveLabel: false, decoration: "flat") {
             state "fanOff", label:'OFF', action:"fanOff", icon:"st.Home.home30"
         }
         standardTile("lowSpeed", "device.level", inactiveLabel: false, decoration: "flat") {
             state "lowSpeed", label:'LOW', action:"lowSpeed", icon:"st.Home.home30"
         }
-        standardTile("medSpeed", "device.level", inactiveLabel: false, decoration: "flat") {
-            state "medSpeed", label:'MED', action:"medSpeed", icon:"st.Home.home30"
-        }
         standardTile("highSpeed", "device.level", inactiveLabel: false, decoration: "flat") {
             state "highSpeed", label:'HIGH', action:"highSpeed", icon:"st.Home.home30"
+        }
+        standardTile("lightToggle", "device.switch", inactiveLabel: false, decoration: "flat") {
+            state "default", label:'LIGHT', action:"lightToggle", icon:"st.Home.home30"
         }
         standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
 			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
 		main(["switch"])
-		details(["switch", "refresh", "currentSpeed", "fanOff", "lowSpeed", "medSpeed", "highSpeed"])
+		details(["switch", "refresh", "currentSpeed", "fanOff", "lowSpeed", "highSpeed"])
 	}
 }
 
-def updated(){
-		// Device-Watch simply pings if no device events received for 32min(checkInterval)
-		sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
-}
 
-def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd) {
-	[name: "switch", value: cmd.value ? "on" : "off", type: "physical"]
-}
-
-def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicSet cmd) {
-	[name: "switch", value: cmd.value ? "on" : "off", type: "physical"]
-}
-
-def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
-	[name: "switch", value: cmd.value ? "on" : "off", type: "digital"]
-}
-
-def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
-	def value = "when off"
-	if (cmd.configurationValue[0] == 1) {value = "when on"}
-	if (cmd.configurationValue[0] == 2) {value = "never"}
-	[name: "indicatorStatus", value: value, displayed: false]
-}
-
-def zwaveEvent(physicalgraph.zwave.commands.hailv1.Hail cmd) {
-	[name: "hail", value: "hail", descriptionText: "Switch button was pressed", displayed: false]
-}
-
-def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerSpecificReport cmd) {
-	log.debug "manufacturerId:   ${cmd.manufacturerId}"
-	log.debug "manufacturerName: ${cmd.manufacturerName}"
-	log.debug "productId:        ${cmd.productId}"
-	log.debug "productTypeId:    ${cmd.productTypeId}"
-	def msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
-	updateDataValue("MSR", msr)
-	updateDataValue("manufacturer", cmd.manufacturerName)
-	createEvent([descriptionText: "$device.displayName MSR: $msr", isStateChange: false])
-}
-
-
-def zwaveEvent(physicalgraph.zwave.Command cmd) {
-	// Handles all Z-Wave commands we aren't interested in
-	[:]
-}
-
-def fanOff() {
-	log.debug "Fan Off!!!"
-    sendEvent(name: "switch", value: "on", isStateChange: false, display: false)
-    sendEvent(name: "currentSpeed", value: "OFF" as String)
-	runCmd("fan=fanoff")
+def lightToggle() {
+	log.debug "lightToggle!!!"
+	runCmd("fan=lighttoggle")
 }
 
 def on() {
 	log.debug "Switch On!!!"
 	sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
-	delayBetween([
-		zwave.basicV1.basicSet(value: 0xFF).format(),
-		zwave.switchBinaryV1.switchBinaryGet().format()
-	])
+    sendEvent(name: "currentSpeed", value: "LOW" as String)
+    runCmd("fan=speedlo")
 }
 
 def off() {
 	log.debug "Switch Off!!!"
 	sendEvent(name: "switch", value: "off", isStateChange: true, display: false)
-	delayBetween([
-		zwave.basicV1.basicSet(value: 0x00).format(),
-		zwave.switchBinaryV1.switchBinaryGet().format()
-	])
+    sendEvent(name: "currentSpeed", value: "OFF" as String)
+    runCmd("fan=fanoff")
 }
+
 def highSpeed() {
 	log.debug "High Speed!!!"
-    sendEvent(name: "switch", value: "on", isStateChange: false, display: false)
+    sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
     sendEvent(name: "currentSpeed", value: "HIGH" as String)
 	runCmd("fan=speedhi")
 }
-def medSpeed() {
-	log.debug "Medium Speed!!!"
-    sendEvent(name: "switch", value: "on", isStateChange: false, display: false)
-    sendEvent(name: "currentSpeed", value: "MED" as String)
-	runCmd("fan=speedmed")
-}
+
 def lowSpeed() {
 	log.debug "Low Speed!!!"
-    sendEvent(name: "switch", value: "on", isStateChange: false, display: false)
+    sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
     sendEvent(name: "currentSpeed", value: "LOW" as String)
 	runCmd("fan=speedlo")
 }
 
 def setLevel(val){
     log.info "setLevel $val"
-    sendEvent(name:"level",value:val)        											
-        if (val == 0){ 
-        	runCmd("fan=fanoff")
-        	sendEvent(name: "switch", value: "on", isStateChange: false, display: false)
-       		log.info "Fan off"
-  		  	sendEvent(name: "currentSpeed", value: "OFF" as String)
-   			}
-        if ((val >= 1) & (val <=30)) {
-        	runCmd("fan=speedlo")
-        	sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
-			log.info "Fan low"
-    		sendEvent(name: "currentSpeed", value: "LOW" as String)
+    sendEvent(name:"level",value:val)
+        if ((val >= 1) & (val <=50)) {
+            lowSpeed()
        		}
-        if ((val >= 31) & (val <=60)) {
-        	runCmd("fan=speedmed")
-        	sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
-        	log.info "Fan Med"
-    		sendEvent(name: "currentSpeed", value: "MED" as String)
-			}
-        if ((val >= 61) & (val <=100)) {
-        	runCmd("fan=speedhi")
-        	sendEvent(name: "switch", value: "on", isStateChange: true, display: false)
-        	log.info "Fan High"
-    		sendEvent(name: "currentSpeed", value: "HIGH" as String)
+        else {
+        	highSpeed()
         	}                                                  
 	}
 
@@ -254,39 +180,7 @@ def runCmd(String varCommand) {
 }
 
 def parse(String description) {
-	def result = null
-	def cmd = zwave.parse(description, [0x20: 1, 0x70: 1])
-	if (cmd) {
-		result = createEvent(zwaveEvent(cmd))
-	}
-	if (result?.name == 'hail' && hubFirmwareLessThan("000.011.00602")) {
-		result = [result, response(zwave.basicV1.basicGet())]
-		log.debug "Was hailed: requesting state update"
-	} else {
-		log.debug "Parse returned ${result?.descriptionText}"
-	}
-	return result
-}
-
-def poll() {
-	delayBetween([
-		zwave.switchBinaryV1.switchBinaryGet().format(),
-		zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
-	])
-}
-
-/**
-  * PING is used by Device-Watch in attempt to reach the Device
-**/
-def ping() {
-		refresh()
-}
-
-def refresh() {
-	delayBetween([
-		zwave.switchBinaryV1.switchBinaryGet().format(),
-		zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
-	])
+	log.debug "This device does not return data"
 }
 
 private String convertIPtoHex(ipAddress) {
