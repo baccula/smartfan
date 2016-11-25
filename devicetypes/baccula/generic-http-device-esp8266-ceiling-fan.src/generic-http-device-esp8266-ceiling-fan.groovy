@@ -28,7 +28,7 @@ metadata {
 		command "fanOff"
         command "lowSpeed"
         command "highSpeed"
-        command "lighttoggle"
+        command "lightToggle"
         
         attribute "currentSpeed", "string"
 	}
@@ -61,9 +61,6 @@ metadata {
         }
 
 		//Speed control row
-        standardTile("fanOff", "device.switch", inactiveLabel: false, decoration: "flat") {
-            state "fanOff", label:'OFF', action:"fanOff", icon:"st.Home.home30"
-        }
         standardTile("lowSpeed", "device.level", inactiveLabel: false, decoration: "flat") {
             state "lowSpeed", label:'LOW', action:"lowSpeed", icon:"st.Home.home30"
         }
@@ -77,7 +74,7 @@ metadata {
 			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
 		main(["switch"])
-		details(["switch", "refresh", "currentSpeed", "fanOff", "lowSpeed", "highSpeed"])
+		details(["switch", "currentSpeed", "refresh", "lightToggle", "lowSpeed", "highSpeed"])
 	}
 }
 
